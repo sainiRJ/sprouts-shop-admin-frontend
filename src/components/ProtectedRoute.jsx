@@ -1,0 +1,19 @@
+import { Navigate } from "react-router-dom";
+import { useAppSelector } from "@/store/store";
+
+export function ProtectedRoute({ children }) {
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const restoreAttempted = useAppSelector((s) => s.auth.restoreAttempted);
+
+  if (!restoreAttempted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
