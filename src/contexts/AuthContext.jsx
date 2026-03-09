@@ -1,25 +1,27 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
+import { useAppSelector, useAppDispatch } from "@/store/store";
+import { logout as logoutAction } from "@/store/authSlice";
+import { useLogoutMutation } from "@/store/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem("admin_auth") === "true",
-  );
+  const dispatch = useAppDispatch();
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const user = useAppSelector((s) => s.auth.user);
+  const [logoutApi] = useLogoutMutation();
 
-  const login = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem("admin_auth", "true");
-  };
-
-  const logout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem("admin_auth");
-    localStorage.removeItem("adminTokens");
+  const logout = async () => {
+    try {
+      await logoutApi().unwrap();
+    } catch {
+      // Cookie may already be cleared; still clear local state
+    }
+    dispatch(logoutAction());
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -30,4 +32,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-

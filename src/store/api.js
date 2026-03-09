@@ -1,27 +1,65 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { setCredentials, logout } from "./authSlice";
 
 const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:4080/api";
 
+const isRefreshRequest = (args) => {
+  const url = typeof args === "string" ? args : args?.url ?? "";
+  return String(url).includes("/user/refresh");
+};
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl,
-  prepareHeaders: (headers) => {
-    try {
-      const raw = localStorage.getItem("adminTokens");
-      if (raw) {
-        const { accessToken } = JSON.parse(raw);
-        if (accessToken) {
-          headers.set("authorization", `Bearer ${accessToken}`);
-        }
-      }
-    } catch {
-      // ignore parse errors
+  credentials: "include",
+  prepareHeaders: (headers, { getState }) => {
+    const token = getState().auth?.user?.accessToken;
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
     }
     return headers;
   },
 });
 
+const baseQueryWithReauth = async (args, api, extraOptions) => {
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401 && !isRefreshRequest(args)) {
+    const refreshResult = await rawBaseQuery(
+      { url: "/user/refresh", method: "POST" },
+      api,
+      extraOptions
+    );
+
+    if (refreshResult.error) {
+      api.dispatch(logout());
+      return result;
+    }
+
+    const payload =
+      refreshResult.data?.responseBody?.data ??
+      refreshResult.data?.data ??
+      refreshResult.data;
+    const accessToken = payload?.accessToken;
+
+    if (accessToken) {
+      const currentUser = api.getState().auth?.user;
+      api.dispatch(
+        setCredentials({
+          ...currentUser,
+          accessToken,
+        })
+      );
+      result = await rawBaseQuery(args, api, extraOptions);
+    } else {
+      api.dispatch(logout());
+    }
+  }
+
+  return result;
+};
+
 const baseQuery = async (args, api, extraOptions) => {
-  const result = await rawBaseQuery(args, api, extraOptions);
+  const result = await baseQueryWithReauth(args, api, extraOptions);
   if (result.data && typeof result.data === "object" && "data" in result.data) {
     return { ...result, data: result.data.data };
   }
@@ -52,6 +90,12 @@ export const api = createApi({
         url: "/user/me",
         method: "GET",
       }),
+    }),
+    refreshToken: builder.mutation({
+      query: () => ({ url: "/user/refresh", method: "POST" }),
+    }),
+    logout: builder.mutation({
+      query: () => ({ url: "/user/logout", method: "POST" }),
     }),
     getDashboardStats: builder.query({
       query: () => ({
@@ -165,6 +209,8 @@ export const api = createApi({
 export const {
   useLoginMutation,
   useLazyGetProfileQuery,
+  useRefreshTokenMutation,
+  useLogoutMutation,
   useGetDashboardStatsQuery,
   useGetAdminUsersQuery,
   useGetAdminOrdersQuery,

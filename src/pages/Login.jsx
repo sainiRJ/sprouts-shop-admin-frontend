@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAppDispatch } from "@/store/store";
+import { setCredentials, logout } from "@/store/authSlice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +16,7 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [loginMutation, { isLoading: isLoggingIn }] = useLoginMutation();
   const [triggerProfile, { isLoading: isLoadingProfile }] =
@@ -25,29 +26,30 @@ const Login = () => {
     e.preventDefault();
     try {
       const loginResponse = await loginMutation({ email, password }).unwrap();
-      const tokens = loginResponse || {};
-      const accessToken = tokens.accessToken;
-      const refreshToken = tokens.refreshToken;
+      const payload = (loginResponse?.data ?? loginResponse) || {};
 
+      const accessToken = payload.accessToken;
       if (!accessToken) {
         throw new Error("Invalid login response");
       }
 
-      localStorage.setItem(
-        "adminTokens",
-        JSON.stringify({ accessToken, refreshToken }),
+      dispatch(
+        setCredentials({
+          fullName: payload.fullName,
+          email: payload.email,
+          accessToken,
+        })
       );
 
       const profileResponse = await triggerProfile().unwrap();
-      const profile = profileResponse || {};
+      const profile = profileResponse?.data ?? profileResponse ?? {};
 
       if (profile.role !== "admin") {
-        localStorage.removeItem("adminTokens");
+        dispatch(logout());
         toast.error("You are not authorized to access the admin panel");
         return;
       }
 
-      login();
       toast.success("Welcome back!");
       navigate("/");
     } catch (error) {
