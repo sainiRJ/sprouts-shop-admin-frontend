@@ -7,6 +7,7 @@ import {
   useUpdateProductMutation,
   useDeleteProductMutation,
   useGetAdminCategoriesQuery,
+  useUploadProductImageMutation,
 } from "@/store/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ const Products = () => {
   const [createProduct, { isLoading: isCreating }] = useCreateProductMutation();
   const [updateProduct, { isLoading: isUpdating }] = useUpdateProductMutation();
   const [deleteProduct, { isLoading: isDeleting }] = useDeleteProductMutation();
+  const [uploadProductImage] = useUploadProductImageMutation();
 
   const products = productsData?.products || [];
   const totalPages = productsData?.pagination?.pages || 1;
@@ -102,27 +104,7 @@ const Products = () => {
     }
   };
 
-  const handleMainImage = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setMainImagePreview(url);
-    }
-  };
-
-  const handleGalleryImages = (e) => {
-    const { files } = e.target;
-    if (files) {
-      const newUrls = [];
-      const newPreviews = [];
-      Array.from(files).forEach((file) => {
-        const url = URL.createObjectURL(file);
-        newUrls.push(url);
-        newPreviews.push(url);
-      });
-      setGalleryPreviews([...galleryPreviews, ...newPreviews]);
-    }
-  };
+  // uploads handle image selection + preview
 
   const removeGalleryImage = (index) => {
     setGalleryPreviews(galleryPreviews.filter((_, i) => i !== index));
@@ -169,9 +151,9 @@ const Products = () => {
     });
     setFeatures([]);
     setFeatureInput("");
-    const image = Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : "";
-    setMainImagePreview(image);
-    setGalleryPreviews([]);
+    const imgs = Array.isArray(p.images) ? p.images : [];
+    setMainImagePreview(imgs[0] || "");
+    setGalleryPreviews(imgs.slice(1));
     setOpen(true);
   };
 
@@ -190,6 +172,14 @@ const Products = () => {
       stock,
       description: form.description || form.longDescription || "",
       isActive: form.status !== "draft",
+      images: [
+        ...(isImageUrl(mainImagePreview) && !mainImagePreview.startsWith("blob:")
+          ? [mainImagePreview]
+          : []),
+        ...galleryPreviews.filter(
+          (x) => isImageUrl(x) && !String(x).startsWith("blob:")
+        ),
+      ],
     };
 
     try {
@@ -222,6 +212,49 @@ const Products = () => {
   const isImageUrl = (s) =>
     typeof s === "string" &&
     (s.startsWith("blob:") || s.startsWith("http") || s.startsWith("data:"));
+
+  const uploadOne = async (file) => {
+    const formData = new FormData();
+    formData.append("image", file);
+    const resp = await uploadProductImage(formData).unwrap();
+    const url = resp?.url;
+    if (!url) throw new Error("Upload failed");
+    return url;
+  };
+
+  const handleMainImageUpload = async (file) => {
+    try {
+      const localPreview = URL.createObjectURL(file);
+      setMainImagePreview(localPreview);
+      const url = await uploadOne(file);
+      setMainImagePreview(url);
+      toast.success("Main image uploaded");
+    } catch (err) {
+      toast.error("Failed to upload main image");
+    }
+  };
+
+  const handleGalleryUpload = async (files) => {
+    try {
+      const local = Array.from(files).map((f) => URL.createObjectURL(f));
+      setGalleryPreviews((prev) => [...prev, ...local]);
+      const uploaded = [];
+      for (const f of Array.from(files)) {
+        // sequential to keep it simple; can batch later
+        // eslint-disable-next-line no-await-in-loop
+        const url = await uploadOne(f);
+        uploaded.push(url);
+      }
+      setGalleryPreviews((prev) => {
+        // replace local previews we just added with uploaded urls at the end
+        const withoutLocalTail = prev.slice(0, Math.max(0, prev.length - local.length));
+        return [...withoutLocalTail, ...uploaded];
+      });
+      toast.success("Gallery images uploaded");
+    } catch (err) {
+      toast.error("Failed to upload gallery images");
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -459,7 +492,10 @@ const Products = () => {
                 ref={mainImageRef}
                 type="file"
                 accept="image/*"
-                onChange={handleMainImage}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleMainImageUpload(file);
+                }}
                 className="hidden"
               />
               <div
@@ -494,7 +530,10 @@ const Products = () => {
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={handleGalleryImages}
+                onChange={(e) => {
+                  const { files } = e.target;
+                  if (files && files.length > 0) handleGalleryUpload(files);
+                }}
                 className="hidden"
               />
               <div className="flex flex-wrap gap-3">
