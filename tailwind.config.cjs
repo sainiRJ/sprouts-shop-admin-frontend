@@ -99,11 +99,26 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(8px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "dash-float": {
+          "0%, 100%": { transform: "translateY(0) scale(1)" },
+          "50%": { transform: "translateY(-8px) scale(1.02)" },
+        },
+        "dash-shimmer": {
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
+        },
+        "dash-glow": {
+          "0%, 100%": { opacity: "0.35" },
+          "50%": { opacity: "0.55" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
+        "dash-float": "dash-float 6s ease-in-out infinite",
+        "dash-shimmer": "dash-shimmer 8s linear infinite",
+        "dash-glow": "dash-glow 4s ease-in-out infinite",
       },
     },
   },

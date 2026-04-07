@@ -90,4 +90,19 @@
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-primary);
   }
+
+  .dash-card {
+    @apply rounded-2xl border border-border bg-card text-card-foreground shadow-sm;
+    box-shadow:
+      0 1px 2px hsl(var(--foreground) / 0.04),
+      0 8px 32px -8px hsl(var(--primary) / 0.08);
+  }
+
+  .dash-hero-glow {
+    background: radial-gradient(
+      ellipse 80% 60% at 100% 100%,
+      hsl(var(--primary) / 0.35) 0%,
+      transparent 55%
+    );
+  }
 }
