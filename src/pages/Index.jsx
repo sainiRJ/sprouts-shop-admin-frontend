@@ -232,7 +232,33 @@ const Dashboard = () => {
     const { user } = useAuth();
     const clock = useLiveClock();
     const [periodTab, setPeriodTab] = useState("overview");
-    const { data, isLoading, isError } = useGetDashboardStatsQuery();
+    const [customStartDate, setCustomStartDate] = useState("");
+    const [customEndDate, setCustomEndDate] = useState("");
+
+    useEffect(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const sevenDaysBack = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10);
+        setCustomStartDate(sevenDaysBack);
+        setCustomEndDate(today);
+    }, []);
+
+    const statsQueryParams = useMemo(() => {
+        if (periodTab === "custom") {
+            return {
+                period: "custom",
+                startDate: customStartDate,
+                endDate: customEndDate,
+            };
+        }
+        return { period: periodTab };
+    }, [periodTab, customStartDate, customEndDate]);
+
+    const shouldSkipCustomQuery = periodTab === "custom" && (!customStartDate || !customEndDate);
+    const { data, isLoading, isError } = useGetDashboardStatsQuery(statsQueryParams, {
+        skip: shouldSkipCustomQuery,
+    });
 
     const statsData = data?.stats;
     const ordersByStatus = data?.ordersByStatus || [];
@@ -579,6 +605,36 @@ const Dashboard = () => {
                     ))}
                 </div>
             </motion.div>
+
+            {periodTab === "custom" ? (
+                <motion.div variants={item} className="dash-card rounded-2xl p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div>
+                            <label className="text-xs font-semibold text-muted-foreground">Start date</label>
+                            <input
+                                type="date"
+                                value={customStartDate}
+                                onChange={(e) => setCustomStartDate(e.target.value)}
+                                className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-muted-foreground">End date</label>
+                            <input
+                                type="date"
+                                value={customEndDate}
+                                onChange={(e) => setCustomEndDate(e.target.value)}
+                                className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                            />
+                        </div>
+                    </div>
+                    {shouldSkipCustomQuery ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            Select both start and end date to load custom dashboard metrics.
+                        </p>
+                    ) : null}
+                </motion.div>
+            ) : null}
 
             {/* KPI grid */}
             <motion.div

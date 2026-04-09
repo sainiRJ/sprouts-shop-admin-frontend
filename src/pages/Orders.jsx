@@ -24,6 +24,46 @@ const statusColors = {
 
 const allStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
+const openInvoice = (order) => {
+  const rows = (order.orderItems || [])
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #eee">${item.name ?? "-"}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${item.quantity ?? 0}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₹${Number(item.price ?? 0).toFixed(2)}</td>
+      </tr>
+    `,
+    )
+    .join("");
+
+  const win = window.open("", "_blank");
+  if (!win) return false;
+  win.document.write(`
+    <html><head><title>Invoice</title></head>
+    <body style="font-family:system-ui,sans-serif;max-width:700px;margin:24px auto;padding:0 16px;">
+      <h2>Invoice</h2>
+      <p>Order #${order.orderNumber || order._id}</p>
+      <p>Customer: ${order.user?.fullName || "-"} (${order.user?.email || "-"})</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #111;padding:8px;">Item</th>
+            <th style="text-align:center;border-bottom:2px solid #111;padding:8px;">Qty</th>
+            <th style="text-align:right;border-bottom:2px solid #111;padding:8px;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="font-weight:700;margin-top:16px;">Total: ₹${Number(order.totalAmount || 0).toFixed(2)}</p>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  win.onload = () => win.print();
+  return true;
+};
+
 const Orders = () => {
   const [page, setPage] = useState(1);
   const limit = 5;
@@ -101,6 +141,9 @@ const Orders = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Date
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Invoice
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -157,6 +200,18 @@ const Orders = () => {
                         {o.createdAt
                           ? new Date(o.createdAt).toLocaleDateString()
                           : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ok = openInvoice(o);
+                            if (!ok) toast.error("Unable to open invoice window.");
+                          }}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          Download
+                        </button>
                       </td>
                     </tr>
                   );

@@ -98,9 +98,10 @@ export const api = createApi({
       query: () => ({ url: "/user/logout", method: "POST" }),
     }),
     getDashboardStats: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "/admin/dashboard/stats",
         method: "GET",
+        params,
       }),
       providesTags: ["AdminDashboard"],
     }),
@@ -163,13 +164,6 @@ export const api = createApi({
       }),
       invalidatesTags: ["AdminProducts", "AdminDashboard"],
     }),
-    uploadProductImage: builder.mutation({
-      query: (formData) => ({
-        url: "/products/upload",
-        method: "POST",
-        body: formData,
-      }),
-    }),
     getAdminCategories: builder.query({
       query: () => ({
         url: "/categories/admin/all",
@@ -226,7 +220,6 @@ export const {
   useCreateProductMutation,
   useUpdateProductMutation,
   useDeleteProductMutation,
-  useUploadProductImageMutation,
   useGetAdminCategoriesQuery,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,

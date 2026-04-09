@@ -7,7 +7,6 @@ import {
   useUpdateProductMutation,
   useDeleteProductMutation,
   useGetAdminCategoriesQuery,
-  useUploadProductImageMutation,
 } from "@/store/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,13 +46,14 @@ const Products = () => {
     originalPrice: "",
     stock: "",
     description: "",
-    longDescription: "",
     status: "active",
   });
   const [features, setFeatures] = useState([]);
   const [featureInput, setFeatureInput] = useState("");
   const [mainImagePreview, setMainImagePreview] = useState("");
   const [galleryPreviews, setGalleryPreviews] = useState([]);
+  const [mainImageFile, setMainImageFile] = useState(null);
+  const [galleryImageFiles, setGalleryImageFiles] = useState([]);
 
   const mainImageRef = useRef(null);
   const galleryRef = useRef(null);
@@ -68,7 +68,6 @@ const Products = () => {
   const [createProduct, { isLoading: isCreating }] = useCreateProductMutation();
   const [updateProduct, { isLoading: isUpdating }] = useUpdateProductMutation();
   const [deleteProduct, { isLoading: isDeleting }] = useDeleteProductMutation();
-  const [uploadProductImage] = useUploadProductImageMutation();
 
   const products = productsData?.products || [];
   const totalPages = productsData?.pagination?.pages || 1;
@@ -107,7 +106,16 @@ const Products = () => {
   // uploads handle image selection + preview
 
   const removeGalleryImage = (index) => {
+    const removed = galleryPreviews[index];
     setGalleryPreviews(galleryPreviews.filter((_, i) => i !== index));
+    if (typeof removed === "string" && removed.startsWith("blob:")) {
+      const blobIndex =
+        galleryPreviews
+          .slice(0, index + 1)
+          .filter((preview) => typeof preview === "string" && preview.startsWith("blob:"))
+          .length - 1;
+      setGalleryImageFiles((prev) => prev.filter((_, i) => i !== blobIndex));
+    }
   };
 
   const openAdd = () => {
@@ -119,13 +127,14 @@ const Products = () => {
       originalPrice: "",
       stock: "",
       description: "",
-      longDescription: "",
       status: "active",
     });
     setFeatures([]);
     setFeatureInput("");
     setMainImagePreview("");
     setGalleryPreviews([]);
+    setMainImageFile(null);
+    setGalleryImageFiles([]);
     setOpen(true);
   };
 
@@ -141,7 +150,6 @@ const Products = () => {
           : "",
       stock: (p.stock ?? 0).toString(),
       description: p.description ?? "",
-      longDescription: "",
       status:
         p.stock === 0
           ? "out_of_stock"
@@ -149,11 +157,13 @@ const Products = () => {
           ? "active"
           : "draft",
     });
-    setFeatures([]);
+    setFeatures(Array.isArray(p.features) ? p.features : []);
     setFeatureInput("");
     const imgs = Array.isArray(p.images) ? p.images : [];
     setMainImagePreview(imgs[0] || "");
     setGalleryPreviews(imgs.slice(1));
+    setMainImageFile(null);
+    setGalleryImageFiles([]);
     setOpen(true);
   };
 
@@ -164,23 +174,32 @@ const Products = () => {
     const originalPrice = Number(form.originalPrice) || 0;
     const stock = Number(form.stock) || 0;
 
-    const payload = {
-      name: form.name,
-      category: form.categoryId,
-      price: originalPrice || price,
-      discountPrice: price || undefined,
-      stock,
-      description: form.description || form.longDescription || "",
-      isActive: form.status !== "draft",
-      images: [
-        ...(isImageUrl(mainImagePreview) && !mainImagePreview.startsWith("blob:")
-          ? [mainImagePreview]
-          : []),
-        ...galleryPreviews.filter(
-          (x) => isImageUrl(x) && !String(x).startsWith("blob:")
-        ),
-      ],
-    };
+    const payload = new FormData();
+    payload.append("name", form.name.trim());
+    payload.append("category", form.categoryId);
+    payload.append("price", String(originalPrice || price));
+    if (price) payload.append("discountPrice", String(price));
+    payload.append("stock", String(stock));
+    payload.append("description", form.description || "");
+    payload.append("features", JSON.stringify(features));
+    payload.append("isActive", String(form.status !== "draft"));
+
+    const existingImages = [
+      ...(isImageUrl(mainImagePreview) && !mainImagePreview.startsWith("blob:")
+        ? [mainImagePreview]
+        : []),
+      ...galleryPreviews.filter(
+        (x) => isImageUrl(x) && !String(x).startsWith("blob:")
+      ),
+    ];
+    payload.append("existingImages", JSON.stringify(existingImages));
+
+    if (mainImageFile) {
+      payload.append("images", mainImageFile);
+    }
+    galleryImageFiles.forEach((file) => {
+      payload.append("images", file);
+    });
 
     try {
       if (editing) {
@@ -213,47 +232,17 @@ const Products = () => {
     typeof s === "string" &&
     (s.startsWith("blob:") || s.startsWith("http") || s.startsWith("data:"));
 
-  const uploadOne = async (file) => {
-    const formData = new FormData();
-    formData.append("image", file);
-    const resp = await uploadProductImage(formData).unwrap();
-    const url = resp?.url;
-    if (!url) throw new Error("Upload failed");
-    return url;
-  };
-
   const handleMainImageUpload = async (file) => {
-    try {
-      const localPreview = URL.createObjectURL(file);
-      setMainImagePreview(localPreview);
-      const url = await uploadOne(file);
-      setMainImagePreview(url);
-      toast.success("Main image uploaded");
-    } catch (err) {
-      toast.error("Failed to upload main image");
-    }
+    const localPreview = URL.createObjectURL(file);
+    setMainImagePreview(localPreview);
+    setMainImageFile(file);
   };
 
   const handleGalleryUpload = async (files) => {
-    try {
-      const local = Array.from(files).map((f) => URL.createObjectURL(f));
-      setGalleryPreviews((prev) => [...prev, ...local]);
-      const uploaded = [];
-      for (const f of Array.from(files)) {
-        // sequential to keep it simple; can batch later
-        // eslint-disable-next-line no-await-in-loop
-        const url = await uploadOne(f);
-        uploaded.push(url);
-      }
-      setGalleryPreviews((prev) => {
-        // replace local previews we just added with uploaded urls at the end
-        const withoutLocalTail = prev.slice(0, Math.max(0, prev.length - local.length));
-        return [...withoutLocalTail, ...uploaded];
-      });
-      toast.success("Gallery images uploaded");
-    } catch (err) {
-      toast.error("Failed to upload gallery images");
-    }
+    const selectedFiles = Array.from(files);
+    const local = selectedFiles.map((f) => URL.createObjectURL(f));
+    setGalleryPreviews((prev) => [...prev, ...local]);
+    setGalleryImageFiles((prev) => [...prev, ...selectedFiles]);
   };
 
   return (
@@ -468,20 +457,12 @@ const Products = () => {
               </SelectContent>
             </Select>
 
-            <Input
-              placeholder="Short description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Long Description</label>
+              <label className="text-sm font-medium mb-1.5 block">Description</label>
               <Textarea
-                placeholder="Detailed product description..."
-                value={form.longDescription}
-                onChange={(e) =>
-                  setForm({ ...form, longDescription: e.target.value })
-                }
+                placeholder="Product description..."
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={4}
               />
             </div>
