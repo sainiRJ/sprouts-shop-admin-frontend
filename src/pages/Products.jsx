@@ -33,6 +33,7 @@ const statusColors = {
   draft: "bg-muted text-muted-foreground",
   out_of_stock: "bg-destructive/20 text-destructive",
 };
+const WEIGHT_UNITS = ["g", "kg", "ml", "l", "pcs"];
 
 const Products = () => {
   const [page, setPage] = useState(1);
@@ -45,6 +46,8 @@ const Products = () => {
     price: "",
     originalPrice: "",
     stock: "",
+    weightValue: "",
+    weightUnit: "g",
     description: "",
     status: "active",
   });
@@ -126,6 +129,8 @@ const Products = () => {
       price: "",
       originalPrice: "",
       stock: "",
+      weightValue: "",
+      weightUnit: "g",
       description: "",
       status: "active",
     });
@@ -149,6 +154,11 @@ const Products = () => {
           ? p.price.toString()
           : "",
       stock: (p.stock ?? 0).toString(),
+      weightValue:
+        p.weightValue != null && Number.isFinite(Number(p.weightValue))
+          ? String(p.weightValue)
+          : "",
+      weightUnit: p.weightUnit || "g",
       description: p.description ?? "",
       status:
         p.stock === 0
@@ -173,6 +183,9 @@ const Products = () => {
     const price = Number(form.price) || 0;
     const originalPrice = Number(form.originalPrice) || 0;
     const stock = Number(form.stock) || 0;
+    const weightValue = Number(form.weightValue);
+    const hasWeightValue = Number.isFinite(weightValue) && weightValue > 0;
+    const weightUnit = form.weightUnit || "g";
 
     const payload = new FormData();
     payload.append("name", form.name.trim());
@@ -180,6 +193,10 @@ const Products = () => {
     payload.append("price", String(originalPrice || price));
     if (price) payload.append("discountPrice", String(price));
     payload.append("stock", String(stock));
+    if (hasWeightValue) {
+      payload.append("weightValue", String(weightValue));
+      payload.append("weightUnit", weightUnit);
+    }
     payload.append("description", form.description || "");
     payload.append("features", JSON.stringify(features));
     payload.append("isActive", String(form.status !== "draft"));
@@ -572,7 +589,30 @@ const Products = () => {
                 value={form.stock}
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
               />
+              <Input
+                placeholder="Weight value (e.g. 250)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.weightValue}
+                onChange={(e) => setForm({ ...form, weightValue: e.target.value })}
+              />
             </div>
+            <Select
+              value={form.weightUnit}
+              onValueChange={(v) => setForm({ ...form, weightUnit: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select weight unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {WEIGHT_UNITS.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <div>
               <label className="text-sm font-medium mb-1.5 block">Features</label>
