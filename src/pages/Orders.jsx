@@ -13,6 +13,7 @@ import {
   useUpdateOrderStatusMutation,
 } from "@/store/api";
 import { PaginationControls } from "@/components/PaginationControls";
+import { getApiErrorMessage } from "@/lib/getApiErrorMessage";
 
 const statusColors = {
   pending: "bg-chart-2/20 text-chart-2",
@@ -90,9 +91,7 @@ const Orders = () => {
       await updateOrderStatus({ id, status }).unwrap();
       toast.success(`Order ${label} → ${status}`);
     } catch (error) {
-      const message =
-        error?.data?.error || "Failed to update order status. Please try again.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to update order status. Please try again."));
     }
   };
 

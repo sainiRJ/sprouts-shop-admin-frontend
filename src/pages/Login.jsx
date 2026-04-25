@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ShoppingBag, Eye, EyeOff } from "lucide-react";
+import { getApiErrorMessage } from "@/lib/getApiErrorMessage";
 import {
   useLoginMutation,
   useLazyGetProfileQuery,
@@ -53,11 +54,7 @@ const Login = () => {
       toast.success("Welcome back!");
       navigate("/");
     } catch (error) {
-      const message =
-        error?.data?.error ||
-        error?.message ||
-        "Invalid credentials or unable to login";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Invalid credentials or unable to login"));
     }
   };
 

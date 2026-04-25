@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { PaginationControls } from "@/components/PaginationControls";
+import { getApiErrorMessage } from "@/lib/getApiErrorMessage";
 
 const statusColors = {
   active: "bg-success/20 text-success",
@@ -228,9 +229,7 @@ const Products = () => {
       }
       setOpen(false);
     } catch (error) {
-      const message =
-        error?.data?.error || "Failed to save product. Please try again.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to save product. Please try again."));
     }
   };
 
@@ -239,9 +238,7 @@ const Products = () => {
       await deleteProduct(id).unwrap();
       toast.success("Product deleted");
     } catch (error) {
-      const message =
-        error?.data?.error || "Failed to delete product. Please try again.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to delete product. Please try again."));
     }
   };
 

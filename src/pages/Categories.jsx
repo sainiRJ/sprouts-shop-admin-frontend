@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, X } from "lucide-react";
 import {
   useGetAdminCategoriesQuery,
   useCreateCategoryMutation,
@@ -18,12 +18,17 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { PaginationControls } from "@/components/PaginationControls";
+import { getApiErrorMessage } from "@/lib/getApiErrorMessage";
 
 const Categories = () => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", description: "" });
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
   const [page, setPage] = useState(1);
+  const imageRef = useRef(null);
   const limit = 5;
 
   const { data, isLoading, isError } = useGetAdminCategoriesQuery();
@@ -53,21 +58,32 @@ const Categories = () => {
   const openAdd = () => {
     setEditing(null);
     setForm({ name: "", description: "" });
+    setImagePreview("");
+    setImageFile(null);
+    setImageRemoved(false);
     setOpen(true);
   };
 
   const openEdit = (c) => {
     setEditing(c);
     setForm({ name: c.name, description: c.description ?? "" });
+    setImagePreview(c.image ?? "");
+    setImageFile(null);
+    setImageRemoved(false);
     setOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
-    const payload = {
-      name: form.name,
-      description: form.description,
-    };
+    const payload = new FormData();
+    payload.append("name", form.name.trim());
+    payload.append("description", form.description);
+    if (imageFile) {
+      payload.append("image", imageFile);
+    }
+    if (imageRemoved) {
+      payload.append("image", "");
+    }
 
     try {
       if (editing) {
@@ -79,9 +95,7 @@ const Categories = () => {
       }
       setOpen(false);
     } catch (error) {
-      const message =
-        error?.data?.error || "Failed to save category. Please try again.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to save category. Please try again."));
     }
   };
 
@@ -90,10 +104,19 @@ const Categories = () => {
       await deleteCategory(id).unwrap();
       toast.success("Category deleted");
     } catch (error) {
-      const message =
-        error?.data?.error || "Failed to delete category. Please try again.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to delete category. Please try again."));
     }
+  };
+
+  const isImageUrl = (value) =>
+    typeof value === "string" &&
+    (value.startsWith("blob:") || value.startsWith("http") || value.startsWith("data:"));
+
+  const handleImageUpload = (file) => {
+    const localPreview = URL.createObjectURL(file);
+    setImagePreview(localPreview);
+    setImageFile(file);
+    setImageRemoved(false);
   };
 
   return (
@@ -126,6 +149,9 @@ const Categories = () => {
                     Name
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Image
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Description
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -143,6 +169,17 @@ const Categories = () => {
                     className="hover:bg-muted/50 transition-colors"
                   >
                     <td className="px-4 py-3 font-medium">{c.name}</td>
+                    <td className="px-4 py-3">
+                      {c.image ? (
+                        <img
+                          src={c.image}
+                          alt={c.name}
+                          className="h-10 w-10 rounded-md object-cover border border-border"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No image</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {c.description}
                     </td>
@@ -193,6 +230,58 @@ const Categories = () => {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Category Image</label>
+              <input
+                ref={imageRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file);
+                }}
+                className="hidden"
+              />
+              <div
+                onClick={() => imageRef.current?.click()}
+                className="border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors text-center"
+              >
+                {isImageUrl(imagePreview) ? (
+                  <div className="flex items-center justify-center">
+                    <img
+                      src={imagePreview}
+                      alt="Category preview"
+                      className="h-24 w-24 rounded-md object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Upload className="h-8 w-8" />
+                    <span className="text-sm">Click to upload category image</span>
+                  </div>
+                )}
+              </div>
+              {isImageUrl(imagePreview) ? (
+                <div className="mt-2 flex justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const hadExistingImage =
+                        typeof imagePreview === "string" && imagePreview.startsWith("http");
+                      setImagePreview("");
+                      setImageFile(null);
+                      setImageRemoved(hadExistingImage);
+                    }}
+                    className="gap-1"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Remove image
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
